@@ -50,8 +50,8 @@ module.exports = class LockDownEssentials extends Order{
         switch(this.stateCur){
             case OrderState.WELCOMING:
                 this.stateCur = OrderState.DISH;
-                aReturn.push("Welcome to Smit's Dinner.");
-                aReturn.push(`For a list of what we sell tap:`);
+                aReturn.push("Welcome to Smit's Restaurant.");
+                aReturn.push(`For a list of what we sell:`);
                 aReturn.push(`${this.sUrl}/ViewProducts`);
                 
                 aReturn.push("Which dish would you like for today?");
