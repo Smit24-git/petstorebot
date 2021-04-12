@@ -1,94 +1,159 @@
 const Order = require("./Order");
+const Meal = require("./meal");
+const firebase = require('firebase');
+const firebaseConfig= {
+    apiKey: "AIzaSyCgkRLWk6nisGT9if3Ppqe9JeSqYyEG2M8",
+    authDomain: "fir-todo-4f614.firebaseapp.com",
+    projectId: "fir-todo-4f614",
+    storageBucket: "fir-todo-4f614.appspot.com",
+    messagingSenderId: "419286696168",
+    appId: "1:419286696168:web:f025c4896542e62b16895d",
+    measurementId: "G-0GJ5G4R093"
+}
+firebase.initializeApp(firebaseConfig);
+let database = firebase.database();
 
 const OrderState = Object.freeze({
     WELCOMING:   Symbol("welcoming"),
-    FOOD:   Symbol("food"),
-    LITTER:   Symbol("litter"),
-    EXTRAS:  Symbol("extras")
+    DISH:   Symbol("food"),
+});
+const availableMeals=[];
+firebase.database().ref("meals").on("value",snapshot=>{
+    var meals=snapshot.val();
+    console.log(meals);
+    Object.keys(meals).map((key)=>{
+        const meal=meals[key];
+        availableMeals.push(
+            new Meal(
+                key,
+                meal.title,
+                meal.price || 5,
+                meal.meta_description,
+                meal.full_description,
+                meal.featured_image
+            )
+        );
+    });
 });
 
 module.exports = class LockDownEssentials extends Order{
     constructor(sNumber, sUrl){
         super(sNumber, sUrl);
         this.stateCur = OrderState.WELCOMING;
-        this.sSpecies = "";
-        this.sFood = "";
-        this.sLitter = "";
-        this.sExtras = "";
+        this.sDish = {};
+    }
+    setCurrentStateToDish=()=>{
+        this.stateCur=OrderState.DISH;    
     }
     handleInput(sInput){
         let aReturn = [];
         switch(this.stateCur){
             case OrderState.WELCOMING:
-                this.stateCur = OrderState.FOOD;
-                aReturn.push("Welcome to Richard's Pet Store.");
+                this.stateCur = OrderState.DISH;
+                aReturn.push("Welcome to Smit's Dinner.");
                 aReturn.push(`For a list of what we sell tap:`);
-                aReturn.push(`${this.sUrl}/payment/${this.sNumber}/`);
-                if(sInput.toLowerCase() == "meow"){
-                  this.sSpecies = "cat";
-                }else if(sInput.toLowerCase() == "woof") {
-                  this.sSpecies = "dog";
-                } else {
-                  this.stateCur = OrderState.WELCOMING;
-                  aReturn.push("Please type MEOW if you have a cat or WOOF if you have a dog.");
-                  break;
-                }
-                aReturn.push("Would you like CANNED or DRY food or NO?");
+                aReturn.push(`${this.sUrl}/ViewProducts`);
+                
+                aReturn.push("Which dish would you like for today?");
                 break;
-            case OrderState.FOOD:
-                if(this.sSpecies == "cat"){
-                  this.stateCur = OrderState.LITTER;
-                  aReturn.push("Would you like kitty litter?");
+            case OrderState.DISH:
+                if(sInput.toLowerCase() == "no"){
+                    this.sDish = null;
+                    this.isDone(true);
+                    aReturn.push("Your Order has been cancelled. Thank you for your time.");
                 }else{
-                  this.stateCur = OrderState.EXTRAS;
-                  aReturn.push("Would you like a TREAT or TOY for your dog?");
-                }
-                if(sInput.toLowerCase()!= "no"){
-                  this.sFood = sInput;
+                    var isAvailable=false;
+                    //check dish details
+                    availableMeals.forEach((meal)=>{
+                        if(meal.title.toLowerCase() == sInput.toLowerCase()){
+                            
+                            this.sDish= meal;
+                            console.log(this.sDish);
+                            aReturn.push(`Price: $${this.sDish.price}.`);
+                            aReturn.push("Click on this link to complete the payment Process.");
+                            aReturn.push(`${this.sUrl}/payment/${this.sNumber}/`);
+                            this.stateCur = OrderState.PAYMENT;
+                            isAvailable=true;
+                        }
+                    });
+                    if(!isAvailable){
+                        aReturn.push(`Dish unavailable! Please try again with different dish!`);
+                        console.log(aReturn);
+                        this.stateCur=OrderState.DISH;
+                    }
+                    
                 }
                 break;
-            case OrderState.LITTER:
-                this.stateCur = OrderState.EXTRAS
-                if(sInput.toLowerCase()!= "no"){
-                  this.sLitter = "organic kitty litter";
-                }
-                aReturn.push("Would you like a TREAT or TOY for your kitty?");
-                break;
-            case OrderState.EXTRAS:
-                if(sInput.toLowerCase() != "no"){
-                    this.sExtras = sInput;
-                }
-                aReturn.push("Thank-you for your order of");
-                this.nTotal = 0;
-                if(this.sSpecies == "cat" && this.sFood.toLowerCase() == "canned"){
-                  aReturn.push("canned cat food");
-                  this.nTotal += 5.99;
-                }else if(this.sSpecies == "cat" && this.sFood.toLowerCase == "dry"){
-                  aReturn.push("dry cat food");
-                  this.nTotal += 2.99
-                }else if(this.sSpecies == "dog" && this.sFood.toLowerCase() == "canned"){
-                  aReturn.push("canned dog food");
-                  this.nTotal += 5.99;
-                }else if(this.sSpecies == "dog" && this.sFood.toLowerCase == "dry"){
-                  aReturn.push("dry dog food");
-                  this.nTotal += 5.99
-                }
-                if(this.sLitter){
-                  aReturn.push(this.sLitter);
-                  this.nTotal += 2.99;
-                }
-                if(this.sExtras){
-                  aReturn.push(this.sExtras);
-                  this.nTotal += 2.99;
-                }
-                aReturn.push(`Your total comes to ${this.nTotal}`);
-                aReturn.push(`We will text you from 519-222-2222 when your order is ready or if we have questions.`)
+            case OrderState.PAYMENT:
                 this.isDone(true);
+                console.log(sInput);
+                if(this.sDish!=null){
+                    //payment process...
+                    aReturn.push(`Thank you for ordering ${this.sDish.title}.`)
+                }
                 break;
         }
+        console.log(aReturn);
         return aReturn;
     }
-    renderForm(){
+    renderPaymentForm(){
+        // your client id should be kept private
+        const sClientID = process.env.SB_CLIENT_ID || 'AfBebXG8nX7V2jXKrgWSeRnmXIljCx5C3SpwRNLTYiMEppIy8oTL3ULikovSlWcDamUF3-9RHyZUa24l'
+        return(`
+        <!DOCTYPE html>
+    
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1"> <!-- Ensures optimal rendering on mobile devices. -->
+          <meta http-equiv="X-UA-Compatible" content="IE=edge" /> <!-- Optimal Internet Explorer compatibility -->
+        </head>
+        
+        <body>
+        <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+          
+          <script src="/js/order.js" type="module"></script>
+          <script
+            src="https://www.paypal.com/sdk/js?client-id=${sClientID}"> // Required. Replace SB_CLIENT_ID with your sandbox client ID.
+          </script>
+          Thank you ${this.sNumber} for your order of $${this.sDish.price}.
+          <div id="paypal-button-container"></div>
+    
+          <script>
+            paypal.Buttons({
+                createOrder: function(data, actions) {
+                  // This function sets up the details of the transaction, including the amount and line item details.
+                  return actions.order.create({
+                    purchase_units: [{
+                      amount: {
+                        value: '${this.sDish.price}'
+                      }
+                    }]
+                  });
+                },
+                onApprove: function(data, actions) {
+                  // This function captures the funds from the transaction.
+                  return actions.order.capture().then(function(details) {
+  
+                    // This function shows a transaction success message to your buyer.
+                    $.post(".",{details:details},()=>{
+                       window.storeOrder(details,${JSON.stringify(this)});
+                    //  window.open("", "_self");
+                    //  window.close(); 
+                    });
+                  });
+                }
+            
+              }).render('#paypal-button-container');
+            // This function displays Smart Payment Buttons on your web page.
+          </script>
+        
+        </body>
+            
+        `);
+    
+      }
+
+      
+    static renderForm(){
       // your client id should be kept private
       return(`
       <html>
@@ -360,67 +425,14 @@ module.exports = class LockDownEssentials extends Order{
           <p class="c3"><span
                   class="c2">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
           </p>
-          <p class="c10"><span class="c0">For curbside pickup:</span></p>
-          <p class="c12"><span class="c15">Text &ldquo;meow&rdquo; or &ldquo;woof&rdquo; to </span><span
-                  class="c13">519-111-1111</span></p>
-          <p class="c9"><span class="c2"></span></p><a id="t.d97173251f8e8de98f4d2ef9884eaa81e39c959c"></a><a id="t.0"></a>
-          <table class="c11">
-              <tbody>
-                  <tr class="c7">
-                      <td class="c1" colspan="1" rowspan="1">
-                          <p class="c8"><span class="c0">Iams Dog Food 10 kg</span></p>
-                          <p class="c3"><span
-                                  class="c2">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-                          </p>
-                      </td>
-                      <td class="c1" colspan="1" rowspan="1">
-                          <p class="c4">
-                              <span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><span
-                                  class="c0">5.99</span></p>
-                          <p class="c3"><span
-                                  class="c2">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-                          </p>
-                      </td>
-                  </tr>
-                  <tr class="c6">
-                      <td class="c1" colspan="1" rowspan="1">
-                          <p class="c8"><span class="c0">Iams Cat Food 1kg</span></p>
-                          <p class="c3"><span
-                                  class="c2">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-                          </p>
-                      </td>
-                      <td class="c1" colspan="1" rowspan="1">
-                          <p class="c4">
-                              <span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><span
-                                  class="c0">2.99</span></p>
-                          <p class="c3"><span
-                                  class="c2">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-                          </p>
-                      </td>
-                  </tr>
-                  <tr class="c6">
-                      <td class="c1" colspan="1" rowspan="1">
-                          <p class="c8"><span class="c0">Organic Kitty Litter 5kg</span></p>
-                          <p class="c3"><span
-                                  class="c2">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-                          </p>
-                      </td>
-                      <td class="c1" colspan="1" rowspan="1">
-                          <p class="c4">
-                              <span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span><span
-                                  class="c0">2.99</span></p>
-                          <p class="c3"><span
-                                  class="c2">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-                          </p>
-                      </td>
-                  </tr>
-              </tbody>
+          <p class="c10"><span class="c0">Menu for next events</span></p>
+          <table class="c11" id='tableBody'>
           </table>
-          <p class="c9"><span class="c2"></span></p>
-          <p class="c12"><span class="c0">We also have a selection of toys, treats and other pet-cessities.</span></p>
-          <p class="c3 c14"><span class="c2"></span></p>
+          <script src='js/Meals.js' type='module'>
+          
+
+          </script>
       </body>
-      
       </html>      `);
   
     }

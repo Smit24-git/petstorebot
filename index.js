@@ -35,7 +35,7 @@ app.post("/payment/:phone", (req, res) => {
       };
       oSocket.emit('receive message', data);
     } else {
-      throw new Exception("twilio code would go here");
+       throw new Exception("twilio code would go here");
     }
   }
   if (oOrders[sFrom].isDone()) {
@@ -44,6 +44,33 @@ app.post("/payment/:phone", (req, res) => {
   }
   res.end("ok");
 });
+app.post('/',(req,res)=>{
+  console.log(req.body.details);
+  
+  res.end('OK!');
+})
+app.post("/payment", (req, res) => {
+  //req. info to persue with the order state to dish with input as a dish name.
+  let sFrom = req.body.Phone || req.body.phone;
+  let sProductName = req.body.title || req.body.Title;
+  console.log(req.body);
+  let sUrl = `${req.headers['x-forwarded-proto'] || req.protocol}://${req.headers['x-forwarded-host'] || req.headers.host}${req.baseUrl}`;
+  if (!oOrders.hasOwnProperty(sFrom)) {
+    oOrders[sFrom] = new LockDownEssentials(sFrom, sUrl);
+  }
+  if (oOrders[sFrom].isDone()) {
+    delete oOrders[sFrom];
+  }
+  // res.end(oOrders[sFrom].renderForm());
+  oOrders[sFrom].setCurrentStateToDish();
+  oOrders[sFrom].handleInput(sProductName);
+  res.end(oOrders[sFrom].renderPaymentForm());
+  
+
+  //res.end("ok. "+sFrom);
+
+});
+
 
 app.get("/payment/:phone", (req, res) => {
   // this happens when the user clicks on the link in SMS
@@ -51,8 +78,13 @@ app.get("/payment/:phone", (req, res) => {
   if (!oOrders.hasOwnProperty(sFrom)) {
     res.end("order already complete");
   } else {
-    res.end(oOrders[sFrom].renderForm());
+    // res.end(oOrders[sFrom].renderForm());
+    res.end(oOrders[sFrom].renderPaymentForm());
   }
+});
+
+app.get("/ViewProducts", (req, res) => {
+  res.end(LockDownEssentials.renderForm());
 });
 
 app.post("/sms", (req, res) => {
